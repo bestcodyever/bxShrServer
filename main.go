@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	_ "github.com/lib/pq"
 )
@@ -35,7 +36,9 @@ type Boxes struct {
 }
 
 func main() {
-	http.HandleFunc("/", boxIndex)
+	http.HandleFunc("/boxes", boxIndex)
+	http.HandleFunc("/boxes/show", boxShowByID)
+	http.HandleFunc("/boxes/create", createBox)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -76,4 +79,82 @@ func boxIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(js)
+}
+
+// Get Boxes by ID
+func boxShowByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.FormValue("id")
+	if id == "" {
+		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+		return
+	}
+
+	row := db.QueryRow("SELECT * FROM boxes WHERE id = $1", id)
+
+	bx := Boxes{}
+	err := row.Scan(&bx.ID, &bx.Name, &bx.Email, &bx.Description, &bx.Long, &bx.Lat)
+	switch {
+	case err == sql.ErrNoRows:
+		http.NotFound(w, r)
+		return
+	case err != nil:
+		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+		return
+	}
+
+	js, err := json.Marshal(bx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(js)
+}
+func createBox(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+
+	bx := Boxes{}
+	bx.Name = r.FormValue("name")
+	bx.Email = r.FormValue("email")
+	bx.Description = r.FormValue("description")
+	p1 := r.FormValue("long")
+	p2 := r.FormValue("lat")
+
+	// validate form values
+	if bx.Name == "" || bx.Email == "" || bx.Description == "" || p1 == "" || p2 == "" {
+		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+		return
+	}
+
+	// convert form values
+	f64, err := strconv.ParseFloat(p1, 32)
+
+	if err != nil {
+		http.Error(w, http.StatusText(406), http.StatusNotAcceptable)
+		return
+	}
+	bx.Long = float32(f64)
+
+	// convert form values
+	f65, err := strconv.ParseFloat(p2, 32)
+	if err != nil {
+		http.Error(w, http.StatusText(406), http.StatusNotAcceptable)
+		return
+	}
+
+	bx.Lat = float32(f65)
+
+	_, err = db.Exec("INSERT INTO boxes (name, email, description, long, lat) VALUES ($1, $2, $3, $4, $5)", bx.Name, bx.Email, bx.Description, bx.Long, bx.Lat)
+	if err != nil {
+		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+		return
+	}
 }

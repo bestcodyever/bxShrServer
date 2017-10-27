@@ -42,6 +42,7 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+// Get all Boxes
 func boxIndex(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
@@ -115,6 +116,8 @@ func boxShowByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Write(js)
 }
+
+// Add new boxes
 func createBox(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
